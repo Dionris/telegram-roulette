@@ -2,52 +2,104 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Telegram Stars Roulette</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="container">
+    <div class="app-container">
         <div class="header">
-            <h1>🎰 Рулетка на Stars</h1>
-            <div class="balance">Баланс: <span id="balance">100</span> ⭐</div>
-        </div>
-
-        <div class="roulette-container">
-            <canvas id="wheelCanvas"></canvas>
-            <div id="result"></div>
-        </div>
-
-        <div class="betting-table">
-            <div class="numbers-grid">
-                <div class="zero">0</div>
-                <div class="numbers"></div>
-            </div>
-            
-            <div class="betting-options">
-                <div class="simple-bets">
-                    <button class="bet-button" data-type="red">🔴 Красное (x2)</button>
-                    <button class="bet-button" data-type="black">⚫ Чёрное (x2)</button>
-                    <button class="bet-button" data-type="even">Чётное (x2)</button>
-                    <button class="bet-button" data-type="odd">Нечётное (x2)</button>
-                    <button class="bet-button" data-type="low">1-18 (x2)</button>
-                    <button class="bet-button" data-type="high">19-36 (x2)</button>
+            <div class="balance-container">
+                <div class="balance">
+                    <span class="balance-label">Баланс:</span>
+                    <span id="balance" class="balance-amount">100</span>
+                    <span class="balance-currency">⭐</span>
                 </div>
             </div>
         </div>
 
-        <div class="controls">
-            <div class="bet-input">
-                <label for="betAmount">Ставка:</label>
-                <input type="number" id="betAmount" min="1" value="10" max="1000">
+        <div class="roulette-section">
+            <div class="wheel-container">
+                <div id="result" class="result-overlay"></div>
             </div>
-            <button id="spinButton" class="spin-button">🎲 Крутить!</button>
+
+            <div class="controls-section">
+                <div class="bet-controls">
+                    <div class="bet-amount-container">
+                        <button class="bet-amount-adjust" id="decreaseBet">-</button>
+                        <input type="number" id="betAmount" min="1" value="10" max="1000">
+                        <button class="bet-amount-adjust" id="increaseBet">+</button>
+                    </div>
+                    <button id="spinButton" class="spin-button">
+                        <span class="spin-icon">🎲</span>
+                        <span class="spin-text">Крутить!</span>
+                    </button>
+                </div>
+
+                <div class="last-numbers">
+                    <div class="last-numbers-label">История:</div>
+                    <div id="lastNumbersList" class="last-numbers-list"></div>
+                </div>
+            </div>
         </div>
 
-        <div class="history">
-            <h3>История</h3>
-            <div id="historyList"></div>
+        <div class="betting-section">
+            <div class="bet-types">
+                <div class="bet-row">
+                    <button class="bet-button" data-type="red">
+                        <span class="bet-icon">🔴</span>
+                        <span class="bet-label">Красное</span>
+                        <span class="bet-multiplier">x2</span>
+                    </button>
+                    <button class="bet-button" data-type="black">
+                        <span class="bet-icon">⚫</span>
+                        <span class="bet-label">Чёрное</span>
+                        <span class="bet-multiplier">x2</span>
+                    </button>
+                    <button class="bet-button" data-type="green">
+                        <span class="bet-icon">🟢</span>
+                        <span class="bet-label">Зеро</span>
+                        <span class="bet-multiplier">x35</span>
+                    </button>
+                </div>
+                <div class="bet-row">
+                    <button class="bet-button" data-type="even">
+                        <span class="bet-label">Чёт</span>
+                        <span class="bet-multiplier">x2</span>
+                    </button>
+                    <button class="bet-button" data-type="odd">
+                        <span class="bet-label">Нечет</span>
+                        <span class="bet-multiplier">x2</span>
+                    </button>
+                </div>
+                <div class="bet-row">
+                    <button class="bet-button" data-type="low">
+                        <span class="bet-label">1-18</span>
+                        <span class="bet-multiplier">x2</span>
+                    </button>
+                    <button class="bet-button" data-type="high">
+                        <span class="bet-label">19-36</span>
+                        <span class="bet-multiplier">x2</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="numbers-grid" id="numbersGrid"></div>
+        </div>
+
+        <div class="stats-section">
+            <div class="stats-container">
+                <div class="stat-item">
+                    <div class="stat-label">Выиграно</div>
+                    <div id="totalWon" class="stat-value">0 ⭐</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Макс. выигрыш</div>
+                    <div id="maxWin" class="stat-value">0 ⭐</div>
+                </div>
+            </div>
         </div>
     </div>
     <script src="script.js"></script>

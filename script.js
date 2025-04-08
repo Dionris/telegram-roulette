@@ -12,26 +12,20 @@ const BLACK_NUMBERS = [2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 3
 
 class RouletteGame {
     constructor() {
-        this.canvas = document.getElementById('wheelCanvas');
-        this.ctx = this.canvas.getContext('2d');
         this.balance = 100;
         this.currentBet = { type: null, amount: 10, numbers: [] };
-        this.history = [];
+        this.lastNumbers = [];
         this.isSpinning = false;
+        this.totalWon = 0;
+        this.maxWin = 0;
+        this.spinSound = new Audio('sounds/spin.mp3');
+        this.winSound = new Audio('sounds/win.mp3');
+        this.loseSound = new Audio('sounds/lose.mp3');
 
-        this.setupCanvas();
         this.initializeEventListeners();
-        this.drawWheel();
-        this.loadHistory();
-        this.updateBalance();
-    }
-
-    setupCanvas() {
-        this.canvas.width = 300;
-        this.canvas.height = 300;
-        this.centerX = this.canvas.width / 2;
-        this.centerY = this.canvas.height / 2;
-        this.radius = Math.min(this.centerX, this.centerY) - 5;
+        this.createNumbersGrid();
+        this.loadGameState();
+        this.updateUI();
     }
 
     initializeEventListeners() {
@@ -40,40 +34,57 @@ class RouletteGame {
             button.addEventListener('click', () => this.setBet(button.dataset.type));
         });
 
+        // Кнопки управления ставкой
+        document.getElementById('decreaseBet').addEventListener('click', () => this.adjustBet(-10));
+        document.getElementById('increaseBet').addEventListener('click', () => this.adjustBet(10));
+        document.getElementById('betAmount').addEventListener('change', (e) => this.validateBetAmount(e.target));
+
         // Кнопка вращения
         document.getElementById('spinButton').addEventListener('click', () => this.spin());
-
-        // Создание сетки номеров
-        this.createNumbersGrid();
     }
 
     createNumbersGrid() {
-        const numbersContainer = document.querySelector('.numbers');
+        const grid = document.getElementById('numbersGrid');
+        grid.innerHTML = '';
+
+        // Добавляем числа от 1 до 36
         for (let i = 1; i <= 36; i++) {
-            const numberDiv = document.createElement('div');
-            numberDiv.textContent = i;
-            numberDiv.className = RED_NUMBERS.includes(i) ? 'red' : 'black';
-            numberDiv.addEventListener('click', () => this.setBet('number', i));
-            numbersContainer.appendChild(numberDiv);
+            const cell = document.createElement('div');
+            cell.className = 'number-cell';
+            cell.textContent = i;
+            cell.style.backgroundColor = RED_NUMBERS.includes(i) ? '#e91e63' : '#333333';
+            cell.addEventListener('click', () => this.setBet('number', i));
+            grid.appendChild(cell);
         }
+    }
+
+    drawWheel() {
+        // Implementation of drawWheel method
     }
 
     setBet(type, number = null) {
         const amount = parseInt(document.getElementById('betAmount').value);
         if (isNaN(amount) || amount <= 0 || amount > this.balance) {
-            alert('Неверная сумма ставки!');
+            this.showNotification('Неверная сумма ставки!');
             return;
         }
 
         this.currentBet = {
             type: type,
             amount: amount,
-            numbers: number ? [number] : this.getBetNumbers(type)
+            numbers: number !== null ? [number] : this.getBetNumbers(type)
         };
 
         document.querySelectorAll('.bet-button').forEach(btn => {
             btn.classList.remove('active');
             if (btn.dataset.type === type) btn.classList.add('active');
+        });
+
+        document.querySelectorAll('.number-cell').forEach(cell => {
+            cell.classList.remove('active');
+            if (number !== null && cell.textContent === number.toString()) {
+                cell.classList.add('active');
+            }
         });
     }
 
@@ -81,6 +92,7 @@ class RouletteGame {
         switch (type) {
             case 'red': return RED_NUMBERS;
             case 'black': return BLACK_NUMBERS;
+            case 'green': return [0];
             case 'even': return Array.from({length: 36}, (_, i) => i + 1).filter(n => n % 2 === 0);
             case 'odd': return Array.from({length: 36}, (_, i) => i + 1).filter(n => n % 2 !== 0);
             case 'low': return Array.from({length: 18}, (_, i) => i + 1);
@@ -89,133 +101,174 @@ class RouletteGame {
         }
     }
 
-    drawWheel() {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        
-        // Рисуем колесо
-        for (let i = 0; i < ROULETTE_NUMBERS.length; i++) {
-            const angle = (i * 2 * Math.PI) / ROULETTE_NUMBERS.length;
-            const nextAngle = ((i + 1) * 2 * Math.PI) / ROULETTE_NUMBERS.length;
-            
-            this.ctx.beginPath();
-            this.ctx.moveTo(this.centerX, this.centerY);
-            this.ctx.arc(this.centerX, this.centerY, this.radius, angle, nextAngle);
-            
-            const number = ROULETTE_NUMBERS[i];
-            this.ctx.fillStyle = number === 0 ? '#008000' : 
-                               RED_NUMBERS.includes(number) ? '#e91e63' : '#333333';
-            this.ctx.fill();
-            
-            // Номера
-            this.ctx.save();
-            this.ctx.translate(
-                this.centerX + (this.radius * 0.75) * Math.cos(angle + (nextAngle - angle) / 2),
-                this.centerY + (this.radius * 0.75) * Math.sin(angle + (nextAngle - angle) / 2)
-            );
-            this.ctx.rotate(angle + Math.PI / 2);
-            this.ctx.fillStyle = '#ffffff';
-            this.ctx.font = '12px Arial';
-            this.ctx.textAlign = 'center';
-            this.ctx.fillText(number.toString(), 0, 0);
-            this.ctx.restore();
-        }
-    }
-
     async spin() {
-        if (this.isSpinning || !this.currentBet.type) return;
+        if (this.isSpinning || !this.currentBet.type) {
+            this.showNotification('Выберите ставку!');
+            return;
+        }
         
         this.isSpinning = true;
         document.getElementById('spinButton').disabled = true;
         
         // Списываем ставку
         this.balance -= this.currentBet.amount;
-        this.updateBalance();
+        this.updateUI();
 
-        // Анимация вращения
-        const spins = 5 + Math.random() * 3;
-        const duration = 5000;
-        const startTime = Date.now();
-        
-        const animate = () => {
-            const elapsed = Date.now() - startTime;
-            const progress = Math.min(elapsed / duration, 1);
-            
-            // Функция замедления
-            const easeOut = t => 1 - Math.pow(1 - t, 3);
-            const currentRotation = spins * 2 * Math.PI * easeOut(progress);
-            
-            this.ctx.save();
-            this.ctx.translate(this.centerX, this.centerY);
-            this.ctx.rotate(currentRotation);
-            this.ctx.translate(-this.centerX, -this.centerY);
-            this.drawWheel();
-            this.ctx.restore();
-            
-            if (progress < 1) {
-                requestAnimationFrame(animate);
-            } else {
-                this.finishSpin();
-            }
-        };
-        
-        animate();
+        try {
+            this.spinSound.currentTime = 0;
+            await this.spinSound.play();
+        } catch (e) {
+            console.log('Звук отключен');
+        }
+
+        // Создаем элемент с прокруткой чисел в стиле CS2
+        const spinContainer = document.createElement('div');
+        spinContainer.className = 'cs2-spin-container';
+        spinContainer.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 0;
+            transform: translateY(-50%);
+            white-space: nowrap;
+            animation: cs2Spin 3s cubic-bezier(0.1, 0.7, 0.1, 1) forwards;
+        `;
+
+        // Генерируем случайные числа для анимации
+        const spinNumbers = Array.from({length: 50}, () => 
+            ROULETTE_NUMBERS[Math.floor(Math.random() * ROULETTE_NUMBERS.length)]
+        );
+
+        // Добавляем выигрышное число в конец
+        const winningNumber = ROULETTE_NUMBERS[Math.floor(Math.random() * ROULETTE_NUMBERS.length)];
+        spinNumbers.push(winningNumber);
+
+        // Создаем элементы чисел
+        spinNumbers.forEach(num => {
+            const numElement = document.createElement('span');
+            numElement.className = 'spin-number';
+            numElement.textContent = num;
+            numElement.style.cssText = `
+                display: inline-block;
+                width: 40px;
+                height: 40px;
+                line-height: 40px;
+                text-align: center;
+                margin: 0 5px;
+                border-radius: 50%;
+                background: ${num === 0 ? '#4CAF50' : 
+                            RED_NUMBERS.includes(num) ? '#e91e63' : '#333333'};
+            `;
+            spinContainer.appendChild(numElement);
+        });
+
+        document.querySelector('.wheel-container').appendChild(spinContainer);
+
+        // Ждем окончания анимации
+        setTimeout(() => {
+            spinContainer.remove();
+            this.finishSpin(winningNumber);
+        }, 3000);
     }
 
-    finishSpin() {
-        const winningNumber = ROULETTE_NUMBERS[Math.floor(Math.random() * ROULETTE_NUMBERS.length)];
+    finishSpin(winningNumber) {
         const won = this.currentBet.numbers.includes(winningNumber);
         
-        // Расчёт выигрыша
         let winAmount = 0;
         if (won) {
-            const multiplier = this.currentBet.type === 'number' ? 35 : 2;
+            const multiplier = this.currentBet.type === 'number' || this.currentBet.type === 'green' ? 35 : 2;
             winAmount = this.currentBet.amount * multiplier;
             this.balance += winAmount;
+            this.totalWon += winAmount - this.currentBet.amount;
+            this.maxWin = Math.max(this.maxWin, winAmount - this.currentBet.amount);
+
+            try {
+                this.winSound.currentTime = 0;
+                this.winSound.play();
+            } catch (e) {}
+        } else {
+            try {
+                this.loseSound.currentTime = 0;
+                this.loseSound.play();
+            } catch (e) {}
         }
         
-        // Обновляем историю
-        this.history.unshift({
+        this.lastNumbers.unshift({
             number: winningNumber,
-            won: won,
-            amount: winAmount - this.currentBet.amount
+            color: winningNumber === 0 ? 'green' : 
+                   RED_NUMBERS.includes(winningNumber) ? 'red' : 'black'
         });
-        this.saveHistory();
-        this.updateHistory();
-        this.updateBalance();
+        if (this.lastNumbers.length > 10) this.lastNumbers.pop();
         
-        // Показываем результат
-        document.getElementById('result').textContent = 
-            `${winningNumber} ${won ? '(+' + winAmount + ')' : ''}`;
+        this.saveGameState();
+        this.updateUI();
+        
+        const result = document.getElementById('result');
+        result.textContent = `${winningNumber} ${won ? '(+' + winAmount + ')' : ''}`;
+        result.classList.add('show');
         
         setTimeout(() => {
-            document.getElementById('result').textContent = '';
+            result.classList.remove('show');
             document.getElementById('spinButton').disabled = false;
             this.isSpinning = false;
         }, 3000);
     }
 
-    updateBalance() {
+    adjustBet(amount) {
+        const input = document.getElementById('betAmount');
+        let newValue = parseInt(input.value) + amount;
+        newValue = Math.max(1, Math.min(newValue, this.balance));
+        input.value = newValue;
+    }
+
+    validateBetAmount(input) {
+        let value = parseInt(input.value);
+        if (isNaN(value) || value < 1) value = 1;
+        if (value > this.balance) value = this.balance;
+        input.value = value;
+    }
+
+    showNotification(message) {
+        // В будущем можно добавить красивые уведомления
+        alert(message);
+    }
+
+    updateUI() {
+        // Обновляем баланс
         document.getElementById('balance').textContent = this.balance;
+        
+        // Обновляем статистику
+        document.getElementById('totalWon').textContent = this.totalWon + ' ⭐';
+        document.getElementById('maxWin').textContent = this.maxWin + ' ⭐';
+        
+        // Обновляем историю
+        const historyList = document.getElementById('lastNumbersList');
+        historyList.innerHTML = this.lastNumbers
+            .map(h => `<div class="last-number ${h.color}">${h.number}</div>`)
+            .join('');
+        
         // Отправляем данные в Telegram
         tg.sendData(JSON.stringify({ balance: this.balance }));
     }
 
-    saveHistory() {
-        localStorage.setItem('rouletteHistory', JSON.stringify(this.history.slice(0, 10)));
+    saveGameState() {
+        const state = {
+            balance: this.balance,
+            lastNumbers: this.lastNumbers,
+            totalWon: this.totalWon,
+            maxWin: this.maxWin
+        };
+        localStorage.setItem('rouletteState', JSON.stringify(state));
     }
 
-    loadHistory() {
-        const saved = localStorage.getItem('rouletteHistory');
-        this.history = saved ? JSON.parse(saved) : [];
-        this.updateHistory();
-    }
-
-    updateHistory() {
-        const historyList = document.getElementById('historyList');
-        historyList.innerHTML = this.history
-            .map(h => `<div class="history-item ${h.amount >= 0 ? 'win' : 'loss'}">
-                ${h.number} (${h.amount >= 0 ? '+' : ''}${h.amount})</div>`)
-            .join('');
+    loadGameState() {
+        const saved = localStorage.getItem('rouletteState');
+        if (saved) {
+            const state = JSON.parse(saved);
+            this.balance = state.balance;
+            this.lastNumbers = state.lastNumbers;
+            this.totalWon = state.totalWon;
+            this.maxWin = state.maxWin;
+        }
     }
 }
 
